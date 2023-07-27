@@ -36,8 +36,8 @@ gc() # garbage collection - It can be useful to call gc after a large object has
 ```
 
     ##          used (Mb) gc trigger (Mb) limit (Mb) max used (Mb)
-    ## Ncells 468159 25.1    1002891 53.6         NA   669411 35.8
-    ## Vcells 875486  6.7    8388608 64.0      16384  1851710 14.2
+    ## Ncells 468197 25.1    1003000 53.6         NA   669411 35.8
+    ## Vcells 875878  6.7    8388608 64.0      16384  1851710 14.2
 
 ``` r
 library(tidyverse)
@@ -62,70 +62,93 @@ data <- fmxdat::Jalshtr
 ```
 
 ``` r
-#  calculate annulaized returns 
-
+#  calculate annualized returns
 com.rets <- data %>% 
   arrange(date) %>% 
-  mutate(Year = format(date,"%Y")) %>% 
-  mutate (ret = TRI / lag (TRI) - 1) %>% 
-  filter(date>first(date)) %>%
-  mutate(com.ret = cumprod(1+ret) ) %>% 
+  mutate(Year = format(date, "%Y")) %>% 
+  mutate(ret = TRI / lag(TRI) - 1) %>% 
+  filter(date > first(date)) %>%
+  mutate(com.ret = cumprod(1 + ret)) %>% 
   group_by(Year) %>% 
   filter(date == last(date)) %>% 
   ungroup()
-  
-#  now to get annulized returns 
 
+#  now to get annualized returns
 ann.ret <- com.rets %>%
   mutate(Year = format(date, "%Y"),
          Year = as.Date(paste0(Year, "-12-31"))) %>%
   group_by(Year) %>%
   summarise(Annual.ret = com.ret^(1/12) - 1)
 
-#  add another column for componding period
-
+#  add another column for compounding period
 ann.ret <- ann.ret %>%
   mutate(horizon = as.numeric(difftime(Year, as.Date("2002-12-31"), units = "days")) / 365,
          horizon = round(horizon))
 
-
-# include fees 
-
+# include fees
 fee_impact <- function(investment, fee, annual.return, horizon) {
-  fee <- fee / 10000  # Convert basis points (bp) to decimal form
+  fee <- fee / 10000  # Convert basis points  to decimal form
   final_portfolio_with_fees <- investment * (1 + annual.return - fee) ^ horizon
   final_portfolio_with_fees
 }
 
 fee.difference <- function(df, bp){
- new.df <-  df %>% 
+  new.df <- df %>% 
     mutate(bp_1 = fee_impact(1000, bp, ann.ret$Annual.ret, ann.ret$horizon))
-    new.df
+  new.df
 }
 
-fee.difference(ann.ret, 0)
+# put all of them into a single dataframe 
+no_fee <- fee_impact(investment = 1000, fee = 0, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_10 <- fee_impact(investment = 1000, fee = 10, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_25 <- fee_impact(investment = 1000, fee = 25, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_50 <- fee_impact(investment = 1000, fee = 50, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_100 <- fee_impact(investment = 1000, fee = 100, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_250 <- fee_impact(investment = 1000, fee = 250, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_200 <- fee_impact(investment = 1000, fee = 200, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)  
+
+tyranny <- data.frame(
+  No_Fee = no_fee,
+  Bp_10 = fee_10,
+  Bp_25 = fee_25,
+  Bp_50 = fee_50,
+  Bp_100 = fee_100,
+  Bp_250 = fee_250,
+  Bp_200 = fee_200  
+)
+
+tyranny$Date <- ann.ret$Year
+
+# Make the data tidy
+tidy.tyranny <- tyranny %>% 
+  gather(Fee, Investment, -Date)
+
+tidy.tyranny$Date <- as.Date(tidy.tyranny$Date)
+
+# Plot the line graph
+
+ggplot(tidy.tyranny, aes(x = Date, y = Investment, color = Fee, group = Fee)) +
+  geom_point(size = 1.5) +      
+  geom_line(size = 0.5) +         
+  labs(title = "Tyranny of Fees", 
+    subtitle = "R1000 Invested in the JSE Top 40",
+       x = "Date",
+       y = "Investment Value",
+       color = "Fee", 
+       caption = "Bloomberg") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +  
+  scale_color_brewer(palette = "Set1") +    
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",        
+    axis.text.x = element_text(angle = 90, hjust = 1)  
+  )
 ```
 
-    ## # A tibble: 20 × 4
-    ##    Year       Annual.ret horizon   bp_1
-    ##    <date>          <dbl>   <dbl>  <dbl>
-    ##  1 2002-12-31   -0.0154        0  1000 
-    ##  2 2003-12-31   -0.00314       1   997.
-    ##  3 2004-12-31    0.0159        2  1032.
-    ##  4 2005-12-31    0.0492        3  1155.
-    ##  5 2006-12-31    0.0798        4  1359.
-    ##  6 2007-12-31    0.0957        5  1579.
-    ##  7 2008-12-31    0.0718        6  1516.
-    ##  8 2009-12-31    0.0970        7  1912.
-    ##  9 2010-12-31    0.113         8  2355.
-    ## 10 2011-12-31    0.115         9  2671.
-    ## 11 2012-12-31    0.138        10  3629.
-    ## 12 2013-12-31    0.156        11  4932.
-    ## 13 2014-12-31    0.166        12  6322.
-    ## 14 2015-12-31    0.171        13  7783.
-    ## 15 2016-12-31    0.174        14  9394.
-    ## 16 2017-12-31    0.192        15 13983.
-    ## 17 2018-12-31    0.183        16 14803.
-    ## 18 2019-12-31    0.195        17 20582.
-    ## 19 2020-12-31    0.201        18 27215.
-    ## 20 2021-12-31    0.215        19 40368.
+    ## Warning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.
+    ## ℹ Please use `linewidth` instead.
+    ## This warning is displayed once every 8 hours.
+    ## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
+    ## generated.
+
+![](README_files/figure-markdown_github/unnamed-chunk-2-1.png)

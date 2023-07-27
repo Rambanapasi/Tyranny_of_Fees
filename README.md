@@ -33,8 +33,8 @@
 <!-- -->
 
     ##          used (Mb) gc trigger (Mb) limit (Mb) max used (Mb)
-    ## Ncells 468325 25.1    1003365 53.6         NA   669411 35.8
-    ## Vcells 876159  6.7    8388608 64.0      16384  1851694 14.2
+    ## Ncells 468328 25.1    1003374 53.6         NA   669411 35.8
+    ## Vcells 876178  6.7    8388608 64.0      16384  1851694 14.2
 
     ## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
     ## ✔ dplyr     1.1.2     ✔ readr     2.1.4
@@ -130,11 +130,5 @@ ggplot(tidy.tyranny, aes(x = Date, y = Investment, color = Fee, group = Fee)) +
     axis.text.x = element_text(angle = 90, hjust = 1)  
   )
 ```
-
-    ## Warning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.
-    ## ℹ Please use `linewidth` instead.
-    ## This warning is displayed once every 8 hours.
-    ## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
-    ## generated.
 
 ![](README_files/figure-markdown_github/unnamed-chunk-2-1.png)

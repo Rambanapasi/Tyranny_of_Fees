@@ -34,7 +34,7 @@ data <- fmxdat::Jalshtr
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 #  calculate annulaized returns 
 com.rets <- data %>% 
   arrange(date) %>% 

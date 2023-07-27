@@ -1,0 +1,78 @@
+---
+output:
+  md_document:
+    variant: markdown_github
+---
+# Approach
+
+- management fees are constructed as ad valorem fee and overtime will have a compounding effect just like returns when they compound overtime.
+
+## notes
+
+- since fees compound i tried apply the fees towards the investment amount at the end of the year. the fee should also compound because its growing at a constant on an increasing base year over year. 
+
+- the effect of the feee should be deducted every year from the year investment amount. 
+
+- so whatever value we have for the portfolio we deduct the relevant fee for that period.
+
+- to get the compounding effect yoy I have to get the index referring to the year in which the total return applies. So day we are in 2002 and that the start of the index, i can depict that as investmnet horizon year zero. the rest will be straight forward. 
+
+- this works because annualized return is the yearly depiction of compounding return
+
+- be careful to take measures that will not break the chain in returns, Nico uses coalesce to replace any NAs with Zeros.
+
+- so get annualized return for the actual investment and deduct the net fees from that. and a compoundnig period column
+
+```{r}
+rm(list = ls()) # Clean your environment:
+gc() # garbage collection - It can be useful to call gc after a large object has been removed, as this may prompt R to return memory to the operating system.
+library(tidyverse)
+list.files('code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
+library(lubridate)
+
+data <- fmxdat::Jalshtr
+```
+
+
+```{r}
+#  calculate annulaized returns 
+
+com.rets <- data %>% 
+  arrange(date) %>% 
+  mutate(Year = format(date,"%Y")) %>% 
+  mutate (ret = TRI / lag (TRI) - 1) %>% 
+  filter(date>first(date)) %>%
+  mutate(com.ret = cumprod(1+ret) ) %>% 
+  group_by(Year) %>% 
+  filter(date == last(date)) %>% 
+  ungroup()
+  
+#  now to get annulized returns 
+
+ann.ret <- com.rets %>%
+  mutate(Year = format(date, "%Y"),
+         Year = as.Date(paste0(Year, "-12-31"))) %>%
+  group_by(Year) %>%
+  summarise(Annual.ret = com.ret^(1/12) - 1)
+
+#  add another column for componding period
+
+ann.ret <- ann.ret %>%
+  mutate(horizon = as.numeric(difftime(Year, as.Date("2002-12-31"), units = "days")) / 365,
+         horizon = round(horizon))
+
+
+# include fees 
+
+fee_impact <- function(investment, fee, annual.return, horizon) {
+  fee <- fee / 10000  # Convert basis points (bp) to decimal form
+  final_portfolio_with_fees <- investment * (1 + annual.return - fee) ^ horizon
+  final_portfolio_with_fees
+}
+
+
+fee_impact(1000, 100, ann.ret$Annual.ret, ann.ret$horizon )
+
+
+```
+

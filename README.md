@@ -30,18 +30,11 @@
 -   so get annualized return for the actual investment and deduct the
     net fees from that. and a compoundnig period column
 
-``` r
-rm(list = ls()) # Clean your environment:
-gc() # garbage collection - It can be useful to call gc after a large object has been removed, as this may prompt R to return memory to the operating system.
-```
+<!-- -->
 
     ##          used (Mb) gc trigger (Mb) limit (Mb) max used (Mb)
-    ## Ncells 468155 25.1    1002882 53.6         NA   669405 35.8
-    ## Vcells 875440  6.7    8388608 64.0      16384  1851632 14.2
-
-``` r
-library(tidyverse)
-```
+    ## Ncells 468325 25.1    1003365 53.6         NA   669411 35.8
+    ## Vcells 876159  6.7    8388608 64.0      16384  1851694 14.2
 
     ## ── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
     ## ✔ dplyr     1.1.2     ✔ readr     2.1.4
@@ -55,53 +48,93 @@ library(tidyverse)
     ## ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
 
 ``` r
-list.files('code/', full.names = T, recursive = T) %>% .[grepl('.R', .)] %>% as.list() %>% walk(~source(.))
-library(lubridate)
-
-data <- fmxdat::Jalshtr
-```
-
-``` r
 #  calculate annulaized returns 
-
 com.rets <- data %>% 
   arrange(date) %>% 
-  mutate(Year = format(date,"%Y")) %>% 
-  mutate (ret = TRI / lag (TRI) - 1) %>% 
-  filter(date>first(date)) %>%
-  mutate(com.ret = cumprod(1+ret) ) %>% 
+  mutate(Year = format(date, "%Y")) %>% 
+  mutate(ret = TRI / lag(TRI) - 1) %>% 
+  filter(date > first(date)) %>%
+  mutate(com.ret = cumprod(1 + ret)) %>% 
   group_by(Year) %>% 
   filter(date == last(date)) %>% 
   ungroup()
-  
-#  now to get annulized returns 
 
+#  now to get annualized returns
 ann.ret <- com.rets %>%
   mutate(Year = format(date, "%Y"),
          Year = as.Date(paste0(Year, "-12-31"))) %>%
   group_by(Year) %>%
   summarise(Annual.ret = com.ret^(1/12) - 1)
 
-#  add another column for componding period
-
+#  add another column for compounding period
 ann.ret <- ann.ret %>%
   mutate(horizon = as.numeric(difftime(Year, as.Date("2002-12-31"), units = "days")) / 365,
          horizon = round(horizon))
 
-
-# include fees 
-
+# include fees
 fee_impact <- function(investment, fee, annual.return, horizon) {
-  fee <- fee / 10000  # Convert basis points (bp) to decimal form
+  fee <- fee / 10000  # Convert bp to decimal form
   final_portfolio_with_fees <- investment * (1 + annual.return - fee) ^ horizon
   final_portfolio_with_fees
 }
 
+fee.difference <- function(df, bp){
+  new.df <- df %>% 
+    mutate(bp_1 = fee_impact(1000, bp, ann.ret$Annual.ret, ann.ret$horizon))
+  new.df
+}
 
-fee_impact(1000, 100, ann.ret$Annual.ret, ann.ret$horizon )
+# put all of them into a single dataframe 
+no_fee <- fee_impact(investment = 1000, fee = 0, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_10 <- fee_impact(investment = 1000, fee = 10, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_25 <- fee_impact(investment = 1000, fee = 25, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_50 <- fee_impact(investment = 1000, fee = 50, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_100 <- fee_impact(investment = 1000, fee = 100, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_250 <- fee_impact(investment = 1000, fee = 250, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)
+fee_200 <- fee_impact(investment = 1000, fee = 200, annual.return = ann.ret$Annual.ret, horizon = ann.ret$horizon)  
+
+tyranny <- data.frame(
+  No_Fee = no_fee,
+  Fee_10 = fee_10,
+  Fee_25 = fee_25,
+  Fee_50 = fee_50,
+  Fee_100 = fee_100,
+  Fee_250 = fee_250,
+  Fee_200 = fee_200  
+)
+
+tyranny$Date <- ann.ret$Year
+
+# Make the data tidy
+tidy.tyranny <- tyranny %>% 
+  gather(Fee, Investment, -Date)
+
+tidy.tyranny$Date <- as.Date(tidy.tyranny$Date)
+
+# PLot 
+
+ggplot(tidy.tyranny, aes(x = Date, y = Investment, color = Fee, group = Fee)) +
+  geom_point(size = 1.5) +          
+  geom_line(size = 0.5) +         
+  labs(title = "Tyranny of Fees",
+       subtitle = "R1000 Invested in the JSE Top 40 at Different Fee Structures",
+       x = "Date",
+       y = "Investment Value",
+       color = "Fee", 
+       caption = "Bloomberg") +
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +  
+  scale_color_brewer(palette = "Set1") +    
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",       
+    axis.text.x = element_text(angle = 90, hjust = 1)  
+  )
 ```
 
-    ##  [1]  1000.0000   986.8636  1011.7787  1122.1586  1309.7461  1508.5228
-    ##  [7]  1433.2098  1793.1147  2190.8979  2463.3777  3321.9608  4482.5681
-    ## [13]  5701.5100  6961.7528  8333.0408 12323.4772 12923.8692 17841.1175
-    ## [19] 23413.8492 34501.0346
+    ## Warning: Using `size` aesthetic for lines was deprecated in ggplot2 3.4.0.
+    ## ℹ Please use `linewidth` instead.
+    ## This warning is displayed once every 8 hours.
+    ## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
+    ## generated.
+
+![](README_files/figure-markdown_github/unnamed-chunk-2-1.png)

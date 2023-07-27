@@ -70,9 +70,13 @@ fee_impact <- function(investment, fee, annual.return, horizon) {
   final_portfolio_with_fees
 }
 
+fee.difference <- function(df, bp){
+ new.df <-  df %>% 
+    mutate(bp_1 = fee_impact(1000, bp, ann.ret$Annual.ret, ann.ret$horizon))
+    new.df
+}
 
-fee_impact(1000, 100, ann.ret$Annual.ret, ann.ret$horizon )
-
+fee.difference(ann.ret, 0)
 
 ```
 

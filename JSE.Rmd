@@ -1,0 +1,100 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+
+First calculate the cum returns of an invetsor portfolio should there not exists management fees
+
+```{r}
+library(tidyverse)
+library(lubridate)
+data <- fmxdat::Jalshtr
+head(data)
+
+
+#  calculate cumulative yearly returns 
+ret <- data %>% 
+  arrange(date)  %>% 
+  mutate(ret = TRI/ lag(TRI)-1)
+
+cum.ret <- ret %>% 
+  mutate(ret = coalesce(ret, 0)) %>% 
+  mutate(cum.ret = cumprod(1+ret)) %>% 
+  mutate(YM = format(date, "%y%b")) %>% 
+  group_by(YM) %>% 
+  filter(date == last(date)) %>% 
+  ungroup()
+
+
+# net cumulative returns after fees
+fee.data <- function (df, fee_rate_1,  fee_rate_2, fee_rate_3, fee_rate_4){
+  
+fee.structure <-  cum.ret %>% 
+  mutate(net_cumulative_returns_1 <- cum.ret * (1 - fee_rate_1)) %>%
+  mutate(net_cumulative_returns_2 <- cum.ret * (1 - fee_rate_2)) %>%
+  mutate(net_cumulative_returns_3 <- cum.ret * (1 - fee_rate_3)) %>%
+  mutate(net_cumulative_returns_4 <- cum.ret * (1 - fee_rate_4))
+
+fee.structure
+}
+
+fee.data <- fee.data(cum.ret, 0.001, 0.0025, 0.005, 0.01)
+
+diff.return <- fee.data %>% select(date, cum.ret,`net_cumulative_returns_1 <- cum.ret * (1 - fee_rate_1)`, `net_cumulative_returns_2 <- cum.ret * (1 - fee_rate_2)`, `net_cumulative_returns_3 <- cum.ret * (1 - fee_rate_3)`, `net_cumulative_returns_4 <- cum.ret * (1 - fee_rate_4)` )
+
+diff.return <- diff.return %>%
+  rename(
+    fee.1.50 = `net_cumulative_returns_1 <- cum.ret * (1 - fee_rate_1)`,
+    fee.2. = `net_cumulative_returns_2 <- cum.ret * (1 - fee_rate_2)`,
+    fee.3 = `net_cumulative_returns_3 <- cum.ret * (1 - fee_rate_3)`,
+    fee.4 = `net_cumulative_returns_4 <- cum.ret * (1 - fee_rate_4)`
+  )
+
+fee.data <- diff.return %>% gather(Structure, Return, -date)
+
+fee.plot <- fee.data %>% filter(date>lubridate::ymd(20200130)) %>% 
+  ggplot(aes(x = date, y = Return, group = Structure, color = Structure)) +
+  geom_line() +
+  labs(x = "Date", y = "Cumulative Returns", title = "Cumulative Monthly Returns",
+       subtitle = "Cumulative Returns calculated from monthly TRI data",
+       caption = "Data Source: Bloomberg") +
+  theme_minimal()
+
+
+```
+lets extract the annulalized return from this series which I will use in the series. 
+
+```{r}
+
+n_periods_per_year <- 252  # Assuming you have monthly data (change accordingly for other periods)
+annualized_return <- (tail(cum.ret$cum.ret, 1)^(1 / (nrow(cum.ret) / n_periods_per_year))) - 1
+
+# Print 
+cat("Annualized Return:", annualized_return, "\n")
+
+```
+
+```{r}
+# fee function
+
+fee_impact <- function(initial_investment, annual_return, management_fee, investment_horizon) {
+  # Basis points to decimals
+  management_fee_decimal <- management_fee / 10000
+  
+  # portfolio value with fees
+  final_portfolio_with_fees <- initial_investment * (1 + annual_return - management_fee_decimal) ^ investment_horizon
+
+  final_portfolio_with_fees
+}
+
+
+intial.amount <- 100000
+return <- 0.126     
+fee <- 0        
+horizon <- 20      
+
+result <- fee_impact(intial.amount , return, fee, horizon)
+
+```
+
